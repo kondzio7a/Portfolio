@@ -1,0 +1,876 @@
+---
+title: "Untitled"
+author: "Konrad Angelo"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(openxlsx)
+```
+
+```{r}
+df1 <- read.csv("D:/AA Praktyki/df_patents9020.csv")
+df1
+```
+```{r}
+df2 <- read.csv("D:/AA Praktyki/df_parties.csv")
+df2
+
+```
+
+```{r}
+df3 <-read.csv("D:/AA Praktyki/df_partents.csv")
+df3
+```
+
+
+#Tabelka ze wszystkimi zgłoszeniami patetnowymi 
+```{r}
+df1 %>%
+  select(id, root, id_3) %>%
+  filter(id_3 == 'main-classification') %>%
+  mutate(root = substr(root, 1, 4)) %>%
+  select(root) %>%
+  count(root) %>%
+  arrange(-n)
+
+df1 %>%
+  select(id, root, id_3) %>%
+  filter(id_3 == 'main-classification') %>%
+  select(root) %>%
+  count(root) %>%
+  arrange(-n)
+
+```
+#Tabelka ilości patetnow w branży farmaceutycznej 
+```{r}
+df1 %>%
+  select(id, root, id_3) %>%
+  filter(id_3 == 'main-classification') %>%
+  distinct(id, .keep_all = TRUE) %>%
+  mutate(root = substr(root, 1, 4)) %>%
+  select(root) %>%
+  count(root) %>%
+  arrange(-n) %>%
+  filter(root == 'C07D' | root == 'A61K' | root == 'A61P' | root == 'C07C' | root == 'C12N' | root == 'C07F' | root == 'C07K')
+```
+Tabelka instytucji wszystkie branże 
+```{r}
+df1 %>%
+  select(id, root, id_5) %>%
+  filter(id_5 == 'name') %>%
+  distinct(id, .keep_all = TRUE) %>% 
+  select(root) %>% 
+  count(root) %>% 
+  arrange(-n)
+
+df_parties%>% 
+  filter(role == 'APPLICANTS') %>% 
+  select(name) %>% 
+  count(name) %>% 
+  arrange(-n) 
+
+```
+# Tabelka instydtucja branży farmaceutycznej 1990-2020
+```{r}
+id <- df1 %>%
+  select(id, root, id_3) %>%
+  filter(id_3 == 'main-classification') %>%
+  distinct(id, .keep_all = TRUE) %>%
+  mutate(root = substr(root, 1, 4)) %>%
+  filter(root == 'C07D' | root == 'A61K' | root == 'A61P' | root == 'C07C' | root == 'C12N' | root == 'C07F' | root == 'C07K'|root=='C12Q') %>%   select(id) 
+
+
+result_20 <- inner_join(df2, id, by = "id")
+ result %>% 
+  select(id, root, id_5) %>%
+  filter(id_5 == 'name') %>%
+  select(root) %>% 
+  count(root) %>% 
+  arrange(-n)
+ 
+result_90 <- df1
+```
+```{r}
+result_1 <- inner_join(df2, id, by = "id")
+result_1 %>% 
+  filter(role == 'APPLICANTS') %>% 
+  select(name) %>% 
+  count(name) %>% 
+  arrange(-n) 
+```
+
+#Miasta w branży farmaceutycznej
+```{r}
+result %>% 
+  select(id, root, id_6) %>%
+  filter(id_6 == 'city') %>%
+  distinct(id, .keep_all = TRUE) %>% 
+  select(root) %>% 
+  count(root) %>% 
+  arrange(-n)
+```
+Polskie miasta
+```{r}
+result_1 <- inner_join(df2, id, by = "id")
+result_1 %>% 
+  filter(role == 'APPLICANTS') %>% 
+  select(city_by_all) %>% 
+  count(city_by_all) %>% 
+  arrange(-n) 
+
+```
+
+
+#Wykres słupkowy albo liniowy porównaia lat do ilości patetnów w danej branży 
+```{r}
+years <- result %>% 
+  select(id, root, id_2) %>%
+  filter(id_2 == 'begin-date') %>%
+  distinct(id, .keep_all = TRUE) %>%
+  mutate(root = substr(root, 1, 4)) 
+
+years %>%
+  ggplot(aes(x = root)) +
+  geom_bar() +
+  geom_text(aes(label = ..count..), stat = "count", vjust = 0.5, angle = 90, hjust= -0.1) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  ylim(0, 2500)+
+  xlab("Rok") +
+ylab("Liczba zgłoszeń patetowych") +
+ggtitle("Wykres słupkowy ilości zgłoszeń patetnowych w danym roku")
+
+    
+
+  
+  
+```
+```{r}
+library(dplyr)
+
+# Przetwarzanie danych
+result_processed <- df1 %>%
+  filter(id_2 == 'begin-date' | id_4 == 'date' | id_3 == 'main-classification') %>%
+  select(id, root) %>%
+  mutate(
+    root = substr(root, 1, 4) # Wyciągnij pierwsze 4 znaki z root
+  ) %>%
+  distinct() %>%
+  group_by(id) %>%
+  summarize(
+    year = first(root[grepl("^[0-9]{4}$", root)]), # Wyciągnij rok (4 cyfry)
+   ipc = ifelse(
+      is.na(first(root[!grepl("^[0-9]{4}$", root)])), 
+      nth(root[!grepl("^[0-9]{4}$", root)], 2),       
+      first(root[!grepl("^[0-9]{4}$", root)])         
+  ) 
+  )
+
+
+# Wynik
+sum(is.na(result_processed))
+```
+```{r}
+library(dplyr)
+library(ggplot2)
+data_grouped <- result_processed %>%
+  group_by(year, ipc) %>%
+  summarize(count = n(), .groups = 'drop')
+# Upewnienie się, że 'year' jest liczbą
+data_grouped <- data_grouped %>%
+  mutate(year = as.numeric(year)) # Konwersja 'year' na liczby
+
+# Tworzenie wykresu z facetingiem dla każdego kodu IPC
+ggplot(data_grouped, aes(x = year, y = count, group = ipc)) +
+  geom_line(color = "steelblue", size = 1) +
+  labs(title = "Liczba zgłoszeń patentowych dla każdego kodu IPC", 
+       x = "Rok", 
+       y = "Liczba zgłoszeń") +
+  theme_minimal() +
+  scale_y_continuous(limits = c(0, 800)) + 
+  facet_wrap(~ ipc, nrow = 2, ncol = 4,scales = "free_y") + # Tworzenie osobnych wykresów dla każdego IPC
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1), # Pionowe etykiety osi X
+    strip.text = element_text(size = 10) # Rozmiar nagłówków facetingu
+  )
+```
+```{r}
+library(dplyr)
+library(ggplot2)
+library(TTR) # Pakiet do średniej ruchomej
+
+# Wyliczenie średniej ruchomej (SMA) dla każdej grupy IPC
+data_grouped <- result_processed %>%
+  group_by(year, ipc) %>%
+  summarize(count = n(), .groups = 'drop') %>%
+  mutate(year = as.numeric(year)) %>%
+  group_by(ipc) %>%
+  arrange(year) %>%
+  mutate(trend = SMA(count, n = 5)) # Obliczenie SMA z oknem 5 lat
+
+# Tworzenie wykresu z linią trendu
+ggplot(data_grouped, aes(x = year, y = count, group = ipc)) +
+  geom_line(color = "steelblue", size = 1) + # Główna linia danych
+  geom_line(aes(y = trend), color = "red", size = 1, linetype = "dashed") + # Linia trendu
+  labs(title = "Liczba zgłoszeń patentowych dla każdego kodu IPC", 
+       x = "Rok", 
+       y = "Liczba zgłoszeń") +
+  theme_minimal() +
+  scale_y_continuous(limits = c(0, 800)) + 
+  facet_wrap(~ ipc, nrow = 2, ncol = 4, scales = "free_y") + # Tworzenie osobnych wykresów dla każdego IPC
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1), # Pionowe etykiety osi X
+    strip.text = element_text(size = 10) # Rozmiar nagłówków facetingu
+  )
+
+```
+
+
+## Liczba uczelni i liczba firm
+```{r}
+result_1 %>% 
+  filter(role=='APPLICANTS') %>% 
+  select(id, name) %>%
+  distinct(id, .keep_all = TRUE)  %>% 
+  select(name)%>% 
+  count(name) %>% 
+  arrange(-n) 
+  
+
+city$name <- toupper(city$name)
+
+# Tworzenie filtrów dla każdej kategorii
+uczelnia_filter <- grepl("UNIWERSYTET|POLITECHNIKA|AKADEMIA|WYŻSZA SZKOŁA|SZKOŁA GŁÓWNA|PAŃSTWOWA WYŻSZA SZKOŁA|KOLEGIUM", 
+                         city$name, ignore.case = TRUE)
+instytut_filter <- grepl("INSTYTUT|AKADEMII", city$name, ignore.case = TRUE)
+firma_filter <- !uczelnia_filter & !instytut_filter
+
+# Zliczanie liczby rekordów w każdej kategorii
+liczba_uczelni <- sum(uczelnia_filter)
+liczba_instytutow <- sum(instytut_filter)
+liczba_firm <- sum(firma_filter)
+
+# Suma wszystkich rekordów
+suma_rekordow <- liczba_uczelni + liczba_instytutow + liczba_firm
+
+# Obliczanie procentów
+procent_uczelni <- (liczba_uczelni / suma_rekordow) * 100
+procent_instytutow <- (liczba_instytutow / suma_rekordow) * 100
+procent_firm <- (liczba_firm / suma_rekordow) * 100
+
+# Wyświetlanie wyników
+cat("Liczba uczelni:", liczba_uczelni, "(", round(procent_uczelni, 2), "%)\n")
+cat("Liczba instytutów:", liczba_instytutow, "(", round(procent_instytutow, 2), "%)\n")
+cat("Liczba firm:", liczba_firm, "(", round(procent_firm, 2), "%)\n")
+
+ 
+```
+```{r}
+city%>% 
+   filter(uczelnia_filter) %>% 
+  count(name) %>% 
+  arrange(-n)
+
+```
+```{r}
+city%>% 
+   filter(instytut_filter) %>% 
+  count(name) %>% 
+  arrange(-n)
+```
+
+```{r}
+city %>% 
+   filter(firma_filter) %>% 
+  count(name) %>% 
+  arrange(-n)
+```
+#Kraje
+```{r}
+country <- df2 %>% 
+  filter(role=='APPLICANTS') %>% 
+  select(country) %>% 
+  count(country) %>% 
+  arrange(-n)
+```
+
+
+```{r}
+df2 %>% 
+  filter(role=='APPLICANTS') %>% 
+  filter(country!='PL') %>% 
+  select(city_by_all) %>% 
+  count(city_by_all) %>% 
+  arrange(-n) %>% 
+  summarise(sum(n))
+```
+```{r}
+df2 %>% 
+  filter(role=='APPLICANTS') %>% 
+  filter(country=='PL') %>% 
+  select(city_by_all) %>% 
+  count(city_by_all) %>% 
+  arrange(-n) %>% 
+  summarise(sum(n))
+```
+# Osoby patentujące 
+```{r}
+investors <- result_1 %>% 
+  filter(role=='INVENTORS') 
+applicants <- result_1 %>% 
+  filter(role=='APPLICANTS') %>% 
+  select(id, name )
+investors %>% 
+  select(name) %>% 
+  count(name) %>% 
+  arrange(-n)
+```
+
+
+```{r}
+investors_years <- right_join(investors, result_processed, by = "id")
+investors_years$year <- as.integer(investors_years$year)
+
+
+
+```
+
+```{r}
+
+investors_years %>% 
+  select(year,ipc,name) %>% 
+  count(name,year) %>% 
+  arrange(year,-n) %>% 
+  na.omit()
+```
+```{r}
+investors_and_applicants <- merge(investors,applicants, by = "id")
+
+```
+
+```{r}
+investors_and_applicants %>% 
+  select(name.x,name.y) %>% 
+  na.omit() %>% 
+  count(name.x,name.y) %>% 
+  arrange(-n)
+```
+## Wszysko z zakresu 1990 - 2020
+#Wskaźniki 1990-2020 
+```{r}
+y9020 <- df1 %>%  
+  filter((id_2=='application-reference'&id_4=='date')) %>%
+  distinct(id, .keep_all = TRUE) %>%
+  mutate(root = substr(root, 1, 4)) %>% 
+  select(id,root)
+  
+y9020$root <- as.integer(y9020$root) 
+
+
+result_y<- left_join(df1, y9020, by = "id")
+ result_90 <- result_y %>% 
+   filter(root.y>=1990) %>% 
+   filter(root.y<=2020)
+names(result_90)[names(result_90) == "root.x"] <- "root"
+
+result_90 %>% 
+  select(id, root, id_3) %>%
+  filter(id_3 == 'main-classification')%>%
+  mutate(root = substr(root, 1, 4)) %>% 
+  select(id,root) %>% filter(root == 'C07D' | root == 'A61K' | root == 'A61P' | root == 'C07C' | root == 'C12N' | root == 'C07F' | root == 'C07K'|root=='C12Q') %>% 
+  count(root) %>% 
+  arrange(-n)
+```
+
+Patent scope - jeszcze wziac lata 1990 - 2020 
+```{r}
+patent_scope <- result_90 %>% 
+  filter(id_3 == 'main-classification'|id_3=='further-classification') %>% 
+  select(id,root) %>% 
+  count(id) %>% 
+  arrange(-n)
+patent_scope$patent_scope_ratio <-as.numeric((patent_scope$n-mean(patent_scope$n))/sd(patent_scope$n))
+
+
+patent_scope %>% 
+  select(id,patent_scope_ratio) %>% 
+  arrange(-patent_scope_ratio)
+mean(patent_scope)
+patent_scope <-  patent_scope %>% select(id,patent_scope_ratio)
+
+```
+Grant Lag (Data zgłoszenia - data zgłoszenia) 1990-2020 
+```{r}
+grant_lag <- result_90%>% 
+  filter(id_2=='date-of-grant'|(id_2=='application-reference'&id_4=='date')) %>% 
+  select(id,root,id_2,id_3) 
+
+grant_lag <- grant_lag %>%
+  select(id, root, id_2) %>% 
+  pivot_wider(
+    names_from = id_2,         
+    values_from = root         
+  )
+grant_lag$`application-reference`<- as.integer(grant_lag$`application-reference`)
+grant_lag$`date-of-grant` <- as.integer(grant_lag$`date-of-grant`)
+convert_to_date <- function(date_string) {
+  if (is.na(date_string) || date_string == "NA") {
+    return(NA)
+  }
+  year <- substr(date_string, 1, 4)  # Pobiera pierwsze 4 cyfry jako rok
+  month <- substr(date_string, 5, 6) # Pobiera kolejne 2 cyfry jako miesiąc
+  day <- substr(date_string, 7, 8)   # Pobiera ostatnie 2 cyfry jako dzień
+  paste(year, month, day, sep = "-") # Tworzy obiekt Date w formacie RRRR-MM-DD
+}
+grant_lag$`application-reference` <- sapply(grant_lag$`application-reference`,convert_to_date)
+grant_lag$`date-of-grant` <- sapply(grant_lag$`date-of-grant`, convert_to_date)
+
+grant_lag$`application-reference` <- as.Date(grant_lag$`application-reference`, format = "%Y-%m-%d")
+grant_lag$`date-of-grant` <- as.Date(grant_lag$`date-of-grant`, format = "%Y-%m-%d")
+
+grant_lag$days_between <- as.numeric(grant_lag$`date-of-grant` - grant_lag$`application-reference`)
+#grant_lag$`date-of-grant`[is.na(grant_lag$`date-of-grant`)] <- 0
+#grant_lag$`application-reference`[is.na(grant_lag$`application-reference`)] <- 0
+#grant_lag$days_between[is.na(grant_lag$days_between)] <- 0
+
+grant_lag <- na.omit(grant_lag)
+
+grant_lag$grant_lag_ratio <- as.numeric((mean(grant_lag$days_between,na.rm=T)-grant_lag$days_between)/sd(grant_lag$days_between, na.rm=T))
+grant_lag$grant_lag_ratio[is.na(grant_lag$grant_lag_ratio)] <- 0
+grant_lag %>% 
+  select(id,days_between,grant_lag_ratio,) 
+#grant_lag <- grant_lag %>% select(id,grant_lag_ratio)
+grant_lag <- grant_lag %>% 
+  select(id,grant_lag_ratio)
+
+```
+
+```{r}
+grant_lag%>% arrange(-days_between) %>% select(days_between) %>% head(1)
+round(sd(grant_lag$grant_lag_ratio))
+```
+
+
+Patetnt family size 
+```{r}
+family <- read.csv('D:/AA Praktyki/patents_family.csv')
+family <- family%>% 
+  distinct(priority_code, .keep_all = TRUE) %>%
+  count(id) 
+family<- left_join(id,family)
+family[is.na(family)] <- 0
+#family$patent_family <-as.numeric((family$n/max(family$n, na.rm = T)))
+
+family$patent_family <- as.numeric((family$n-mean(family$n))/sd(family$n))
+family <- family %>% 
+  select(id,patent_family)
+
+```
+
+Cytowania 
+```{r}
+citation <- read.csv('D:/AA Praktyki/patents_citation.csv')
+citation <- citation %>% 
+  count(patent) 
+colnames(citation) <- c('id','n')
+citation$id <- gsub("^PL", "P.", citation$id)
+citation<- left_join(id,citation)
+citation[is.na(citation)] <- 0
+#citation$citation_ratio <-as.numeric(citation$n/max(citation$n))
+citation$citation_ratio <- as.numeric((citation$n-mean(citation$n))/sd(citation$n))
+
+citation <- citation %>% select(id,citation_ratio)
+citation %>% 
+  arrange(-citation_ratio)
+
+round(mean(citation$citation_ratio))
+
+```
+
+Zastrzeżenia 
+```{r}
+zastrzezenia <- read.xlsx("D:/AA Praktyki/zastrzeżenia.xlsx")
+
+zastrzezenia <- zastrzezenia %>%
+  mutate(
+    Wyodrębnione.liczby = gsub("[^0-9,]", "", Wyodrębnione.liczby),
+    MaxLiczba = sapply(strsplit(Wyodrębnione.liczby, ","), function(x) max(as.numeric(x)))
+  )
+zastrzezenia <- zastrzezenia %>% select(Plik,MaxLiczba)
+colnames(zastrzezenia) <- c("id",'n')
+zastrzezenia <- zastrzezenia %>%
+  mutate(id = substr(id, 1, 8))
+
+zastrzezenia<- left_join(id,zastrzezenia)
+zastrzezenia[is.na(zastrzezenia)] <- 0
+
+#zastrzezenia$zastrzezenia_ratio <- zastrzezenia$n/max(zastrzezenia$n)
+zastrzezenia$zastrzezenia_ratio <-as.numeric((zastrzezenia$n-mean(zastrzezenia$n))/sd(zastrzezenia$n))
+round(mean(grant_lag$grant_lag_ratio))
+  zastrzezenia <- zastrzezenia %>%
+  mutate(id = substr(id, 1, 8)) %>% 
+  select(id,zastrzezenia_ratio)
+
+
+
+```
+
+
+
+#Ranking 
+```{r}
+tables <- list(grant_lag, patent_scope,citation,family,zastrzezenia)
+merged_table <- Reduce(function(x, y) merge(x, y, by = "id", all = TRUE), tables)
+sum(is.na(merged_table))
+merged_table <- na.omit(merged_table)
+merged_table <-  round(merged_table,4)
+# Wyświetlenie wyniku
+merged_table %>% 
+  arrange(-innovation_ratio)
+
+
+merged_table$innovation_ratio <- with(merged_table, 
+  grant_lag_ratio * wagi["grant_lag_ratio"] +
+  patent_scope_ratio * wagi["patent_scope_ratio"] +
+  citation_scope * wagi["citation_scope"] +
+  patent_family * wagi["patent_family"] +
+  zastrzezenia_ratio * wagi["zastrzezenia_ratio"]
+)
+
+merged_table$innovation_ratio <- with(merged_table, 
+  grant_lag_ratio * wag_t["grant_lag_ratio"] +
+  patent_scope_ratio * wag_t["patent_scope_ratio"] +
+  citation_scope * wag_t["citation_scope"] +
+  patent_family * wag_t["patent_family"] +
+  zastrzezenia_ratio * wag_t["zastrzezenia_ratio"]
+)
+merged_table$id <- gsub("^P.", "PL", merged_table$id)
+```
+```{r}
+merged_table 
+```
+
+
+
+```{r}
+mean(merged_table$family)
+sum(is.na(merged_table))
+
+
+merged_table <- merged_table[,-1]
+fa.parallel(merged_table, fa = "fa", n.iter = 100)
+```
+
+```{r}
+library(psych)
+
+K <- cov(merged_table) 
+inverse_K <- solve(K) 
+
+fa_result <- fa(merged_table, nfactors = 2, rotate = "varimax")
+
+loadings_MR1 <- fa_result$loadings[, 1] 
+loadings_MR2 <- fa_result$loadings[, 2] 
+
+proportion_var <- fa_result$Vaccounted[2, 1:2] 
+
+combined_loadings <- (loadings_MR1 * proportion_var[1] + loadings_MR2 * proportion_var[2]) / sum(proportion_var)
+
+variances <- diag(K)  
+signal_rates_combined <- (combined_loadings^2) / variances 
+signal_rates_percentage <- signal_rates_combined / sum(signal_rates_combined)  
+
+signal_rates_MR1 <- (loadings_MR1^2) / variances
+signal_rates_MR1_percentage <- signal_rates_MR1 / sum(signal_rates_MR1)
+
+print("Współczynniki sygnału dla MR1 (%):")
+print(round(signal_rates_MR1_percentage * 100, 4))
+
+print("Współczynniki sygnału dla połączonego czynnika (MR1 i MR2) (%):")
+print(round(signal_rates_percentage, 4))
+
+print("Ładunki czynnikowe:")
+print(fa_result$loadings)
+
+proportion_variance <- fa_result$Vaccounted
+
+print("Proporcje wariancji wyjaśnianej przez czynniki:")
+print(proportion_variance)
+
+```
+
+```{r}
+correlations <- cor(merged_table[,-c(1)], merged_table$Innovation.Ratio)
+
+print("Korelacje między wskaźnikami a Innovation Ratio:")
+print(correlations)
+
+```
+
+
+```{r}
+merged_table$innovation_ratio <- rowMeans(
+  cbind(
+    merged_table$grant_lag_ratio * signal_rates_percentage[1],
+    merged_table$patent_scope_ratio * signal_rates_percentage[2],
+    merged_table$citation_ratio * signal_rates_percentage[3],
+    merged_table$patent_family * signal_rates_percentage[4],
+    merged_table$zastrzezenia_ratio * signal_rates_percentage[5]
+  ),
+  na.rm = TRUE
+)
+
+```
+```{r}
+
+
+wyniki <- sapply(merged_table[,-1], function(col) {
+  c(
+    Średnia = round(mean(col)), 
+    OdchylenieStandardowe = round(sd(col))  
+  )
+})
+
+print(wyniki)
+```
+
+```{r}
+
+
+data <- merged_table
+
+original_weights <- c(
+  grant_lag_ratio = 0.2018,
+  patent_scope_ratio = 0.1779,
+  citation_ratio = 0.2147,
+  patent_family = 0.3338,
+  zastrzezenia_ratio = 0.0718
+)
+
+generate_random_weights <- function(weights, variation = 0.01) {
+  random_weights <- weights + runif(length(weights), -variation, variation)
+  random_weights <- random_weights / sum(random_weights)  
+  return(random_weights)
+}
+
+n_simulations <- 5000
+correlations <- numeric(n_simulations) 
+
+set.seed(123)  
+original_scores <- rowMeans(
+  cbind(
+    data$grant_lag_ratio * original_weights["grant_lag_ratio"],
+    data$patent_scope_ratio * original_weights["patent_scope_ratio"],
+    data$citation_ratio * original_weights["citation_ratio"],
+    data$patent_family * original_weights["patent_family"],
+    data$zastrzezenia_ratio * original_weights["zastrzezenia_ratio"]
+  )
+)
+original_ranking <- rank(-original_scores)
+
+for (i in 1:n_simulations) {
+  random_weights <- generate_random_weights(original_weights)
+  
+  simulated_scores <- rowMeans(
+    cbind(
+      data$grant_lag_ratio * random_weights["grant_lag_ratio"],
+      data$patent_scope_ratio * random_weights["patent_scope_ratio"],
+      data$citation_ratio * random_weights["citation_ratio"],
+      data$patent_family * random_weights["patent_family"],
+      data$zastrzezenia_ratio * random_weights["zastrzezenia_ratio"]
+    )
+  )
+  simulated_ranking <- rank(-simulated_scores)
+  
+  correlations[i] <- cor(original_ranking, simulated_ranking, method = "spearman")
+}
+
+mean_correlation <- mean(correlations)  
+lower_bound <- quantile(correlations, 0.05) 
+upper_bound <- quantile(correlations, 0.95) 
+
+cat("Średnia korelacja Spearmana:", mean_correlation, "\n")
+cat("90% przedział ufności: [", lower_bound, ", ", upper_bound, "]\n")
+
+
+
+```
+```{r}
+data <- merged_table
+
+original_weights <- c(
+  grant_lag_ratio = 0.2018,
+  patent_scope_ratio = 0.1779,
+  citation_ratio = 0.2147,
+  patent_family = 0.3338,
+  zastrzezenia_ratio = 0.0718
+)
+
+generate_random_weights <- function(weights, variation = 0.01) {
+  random_weights <- weights + runif(length(weights), -variation, variation)
+  random_weights <- random_weights / sum(random_weights)  # Normalizacja do 1
+  return(random_weights)
+}
+
+calculate_innovation_ratio <- function(data, weights) {
+  rowMeans(
+    cbind(
+      data$grant_lag_ratio * weights["grant_lag_ratio"],
+      data$patent_scope_ratio * weights["patent_scope_ratio"],
+      data$citation_ratio * weights["citation_ratio"],
+      data$patent_family * weights["patent_family"],
+      data$zastrzezenia_ratio * weights["zastrzezenia_ratio"]
+    )
+  )
+}
+
+# Liczba symulacji Monte Carlo
+n_simulations <- 5000
+sensitivity_results <- data.frame(Change_in_Weights = numeric(n_simulations),
+                                  Change_in_Quality = numeric(n_simulations))
+
+set.seed(123)  
+original_quality <- calculate_innovation_ratio(data, original_weights)
+
+for (i in 1:n_simulations) {
+  random_weights <- generate_random_weights(original_weights)
+  new_quality <- calculate_innovation_ratio(data, random_weights)
+  change_in_weights <- sum(abs(random_weights - original_weights)) / sum(original_weights)
+  change_in_quality <- mean(abs(new_quality - original_quality) / original_quality)
+  sensitivity_results[i, ] <- c(change_in_weights * 100, change_in_quality * 100)  # Wartości w %
+}
+
+average_change_weights <- mean(sensitivity_results$Change_in_Weights)
+average_change_quality <- mean(sensitivity_results$Change_in_Quality)
+
+# Wyniki
+cat("Średnia zmiana wag (%):", average_change_weights, "\n")
+cat("Średnia zmiana wskaźnika jakości (%):", average_change_quality, "\n")
+
+
+```
+
+
+```{r}
+years90 <- result_90%>% 
+  filter(id_2=='begin-date') %>%
+  distinct(id, .keep_all = TRUE) %>%
+  mutate(root = substr(root, 1, 4)) 
+
+
+years90 %>%
+  ggplot(aes(x = root)) +
+  geom_bar() +
+  geom_text(aes(label = ..count..), stat = "count", vjust = 0.5, angle = 90, hjust = -0.1) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  xlab("Rok") +
+  ylab("Liczba zgłoszeń patentowych") +
+  ggtitle("Wykres słupkowy ilości zgłoszeń patentowych w danym roku") +
+  ylim(0, 3000) 
+
+
+   
+```
+
+```{r}
+years90 %>% 
+  select(id,root) %>% 
+  count(root) %>%
+  arrange(-n)
+```
+
+
+
+
+
+
+
+#Analiza 9020
+Branże farmaceutyczne kody IPC
+```{r}
+result_90 %>%
+  select(id, root, id_3) %>%
+  filter(id_3 == 'main-classification') %>%
+  distinct(id, .keep_all = TRUE) %>%
+  mutate(root = substr(root, 1, 4)) %>%
+  select(root) %>%
+  count(root) %>%
+  arrange(-n) %>%
+  filter(root == 'C07D' | root == 'A61K' | root == 'A61P' | root == 'C07C' | root == 'C12N' | root == 'C07F' | root == 'C07K'|root=='C12Q')
+```
+#Produkty z IPC
+```{r}
+produkt_ipc <- df1 %>% 
+  select(id, root, id_3) %>%
+  filter(id_3 == 'main-classification') %>%
+  mutate(root = substr(root, 1, 4)) %>%
+  filter(root == 'C07D' | root == 'A61K' | root == 'A61P' | root == 'C07C' | root == 'C12N' | root == 'C07F' | root == 'C07K'|root=='C12Q') %>% 
+  select(id,root)
+
+produkt_ipc$product <- ifelse(produkt_ipc$root=="C07D","Element",
+                    ifelse(produkt_ipc$root=="A61K",'Produkt',
+                    ifelse(produkt_ipc$root=="C07C","Element",
+                    ifelse(produkt_ipc$root=="C12N",'Podzespół',
+                    ifelse(produkt_ipc$root=="C07K","Element",
+                    ifelse(produkt_ipc$root=="C07F","Element",
+                    ifelse(produkt_ipc$root=="C12Q",'Część produktu',
+                    ifelse(produkt_ipc$root=="A16P",'Produkt','Element'))))))))
+product_ipc <- produkt_ipc%>% 
+  select(id,product)
+table_with_produkt <- left_join(result_90,product_ipc,by='id')
+
+table_with_produkt <-  table_with_produkt %>% 
+  distinct(id,.keep_all = TRUE) %>% 
+  select(product,year_grant)
+
+```
+
+
+
+```{r}
+df1 %>%
+  select(id, root, id_3) %>%
+  filter(id_3 == 'main-classification') %>%
+  distinct(id, .keep_all = TRUE) %>% 
+  select(root) %>% 
+  count(root) %>% 
+  arrange(-n)
+```
+
+#DF3
+```{r}
+y9020 <- df3 %>%  
+  filter((id_2=='application-reference'&id_4=='date')) %>%
+  distinct(id, .keep_all = TRUE) %>%
+  mutate(root = substr(root, 1, 4)) %>% 
+  select(id,root)
+  
+y9020$root <- as.integer(y9020$root) 
+
+
+result_y<- left_join(df3, y9020, by = "id")
+ result_90 <- result_y %>% 
+   filter(root.y>=1990) %>% 
+   filter(root.y<=2020)
+names(result_90)[names(result_90) == "root.x"] <- "root"
+result_90 %>% 
+  select(id, root, id_3) %>%
+  filter(id_3 == 'main-classification')%>%
+  mutate(root = substr(root, 1, 4)) %>% 
+  filter(root == 'C07D' | root == 'A61K' | root == 'A61P' | root == 'C07C' | root == 'C12N' | root == 'C07F' | root == 'C07K'|root=='C12Q') %>% 
+  count(root) %>% 
+  arrange(-n)
+```
+
+```{r}
+vector_missing <- as.vector(id_3[!id_3$id %in%  id$id,])
+```
+
+

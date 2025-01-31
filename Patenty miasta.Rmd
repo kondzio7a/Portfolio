@@ -1,0 +1,216 @@
+---
+title: "Patenty miasta"
+author: "Konrad Angelo"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+df <- df_parties
+sum(is.na(df$city_by_all))
+```
+
+```{r}
+
+df_10 <-  df %>%
+  group_by(id, name) %>%
+  filter(all(c("INVENTORS", "ASSIGNEE", "APPLICANTS") %in% role)) %>%
+  mutate(city = ifelse(role == "INVENTORS", 
+                                      first(city[role == "APPLICANTS"]),
+                                      city))
+```
+
+```{r}
+df3 <- read.csv("D:/AA Praktyki/df_partents.csv")
+df5 <- left_join(id_df4,df3,by='id') 
+df5 %>%
+  filter(id_3 == 'applicants' | id_3 == 'inventor' | id_3 == 'assignee') %>%
+  filter(!is.na(root))
+```
+
+```{r}
+df4 <- list_of_patents
+sum(is.na(df4$date_granted))
+id_df4 <- df4 %>% 
+  select(id,date_granted) %>% 
+  na.omit() %>%
+  select(id)
+  
+```
+
+```{r}
+left_join(df,id_df4,by='id')
+```
+
+
+```{r}
+library(readxl)
+library(geosphere)
+
+coordinates_file <- "D:/AA Praktyki/df_adresses_with_coordinates.xlsx"
+patents_file <- "D:/AA Praktyki/df_parties.csv"
+
+coordinates_data <- read_excel(coordinates_file)
+patents_data <- read.csv('D:/AA Praktyki/df_parties.csv')
+filtered_patents <- patents_data %>%
+  filter(role %in% c("APPLICANTS", "INVENTORS", "ASSIGNEE")) %>%
+  filter(!is.na(city_by_name)) 
+
+coordinates_data <- coordinates_data %>%
+  select(Gmina, Województwo, Powiat, latitude, longitude)
+
+filtered_patents <- filtered_patents %>%
+  mutate(city_by_all = toupper(city_by_all)) 
+
+coordinates_data <- coordinates_data %>%
+  mutate(Gmina = toupper(Gmina))
+
+results <- filtered_patents %>%
+  left_join(coordinates_data, by = c("city_by_all" = "Gmina")) %>%
+  filter(!is.na(latitude) & !is.na(longitude))
+library(writexl)
+```
+
+```{r}
+coordinates_file <- "D:/AA Praktyki/df_adresses_with_coordinates.xlsx"
+patents_file <- "D:/AA Praktyki/df_parties.csv"
+
+coordinates_data <- read_excel(coordinates_file)
+patents_data <- read.csv(patents_file)
+
+filtered_patents <- patents_data %>%
+  filter(role %in% c("APPLICANTS", "INVENTORS", "ASSIGNEE")) 
+
+coordinates_data <- coordinates_data %>%
+  select(Gmina, Województwo, Powiat, latitude, longitude)
+
+filtered_patents <- filtered_patents %>%
+  mutate(city_by_all = toupper(city_by_all)) 
+coordinates_data <- coordinates_data %>%
+  mutate(Gmina = toupper(Gmina)) 
+patents_with_coordinates <- filtered_patents %>%
+  left_join(coordinates_data, by = c("city_by_all" = "Gmina")) %>%
+  filter(!is.na(latitude) & !is.na(longitude)) 
+
+find_closest_location <- function(lat, lon, coordinates_data) {
+  coordinates_data %>%
+    mutate(distance = distHaversine(
+      cbind(longitude, latitude),
+      c(lon, lat) 
+    )) %>%
+    filter(distance == min(distance, na.rm = TRUE)) %>%
+    slice(1)
+}
+
+results <- patents_with_coordinates %>%
+  rowwise() %>%
+  mutate(
+    closest_location = list(find_closest_location(
+      lat = latitude,
+      lon = longitude,
+      coordinates_data = coordinates_data
+    ))
+  ) %>%
+  unnest(cols = c(closest_location))
+```
+```{r}
+df7 <- read.csv('D:/AA Praktyki/closest_patents_locations_with_distances.csv')
+```
+
+```{r}
+data <- df7 %>%
+  group_by(id,role, name) %>%
+  mutate(
+    unique_wojewodztwa = n_distinct(Województwo) 
+  ) %>%
+  filter(
+    unique_wojewodztwa > 1 | row_number() == 1 
+  ) %>%
+  ungroup() %>%
+  select(-unique_wojewodztwa)
+
+print(data)
+
+
+
+results %>% 
+  count(id) %>% 
+  arrange(-n)
+
+data <- df7 %>%
+  group_by(id, role, name, Województwo, Powiat) %>%  
+  slice(1) %>%
+  mutate(city_by_all = coalesce(city_by_name, city_by_all)) %>% 
+  ungroup() 
+data <- data[,-1]
+write.csv(data, "D:/AA Praktyki/filtered_data_cities3.csv")
+```
+```{r}
+
+df_10 <- read.csv("D:/AA Praktyki/filtered_data_deduplicated1.csv",header = FALSE)
+sum(is.na(df_10$city_by_all))
+df_10 <- df_10[,-1]
+colnames(df_10) <- c( "X", "id", "role", "name", "last_name", "first_name", 
+                     "city", "city_by_name", "city_by_all", "country", "n", "Województwo", 
+                     "Powiat", "latitude", "longitude","distance")
+df_10 <- df_10 %>% 
+  mutate(city_by_all_new = coalesce(city_by_name, city_by_all))
+
+library(dplyr)
+
+df <- df_10 %>%
+  group_by(name) %>%  
+  mutate(
+    count_unique_city = n_distinct(city_by_all),  
+    count_unique_wojewodztwo = n_distinct(Województwo),  
+    count_unique_Powiat = n_distinct(Powiat),  
+    count_unique_latitude = n_distinct(latitude), 
+    count_unique_longitude = n_distinct(longitude), 
+    count_unique_distance = n_distinct(distance)
+  ) %>%
+  mutate(
+    city_by_all = ifelse(count_unique_city > 1, 
+                         names(sort(table(city_by_all), decreasing = TRUE))[1], 
+                         city_by_all), 
+    Województwo = ifelse(count_unique_wojewodztwo > 1, 
+                         names(sort(table(Województwo), decreasing = TRUE))[1], 
+                         Województwo), 
+    Powiat = ifelse(count_unique_Powiat > 1, 
+                    names(sort(table(Powiat), decreasing = TRUE))[1], 
+                    Powiat),  
+    latitude = ifelse(count_unique_latitude > 1, 
+                      mean(latitude, na.rm = TRUE), 
+                      latitude),
+    longitude = ifelse(count_unique_longitude > 1, 
+                       mean(longitude, na.rm = TRUE), 
+                       longitude),  
+    distance = ifelse(count_unique_distance > 1, 
+                      mean(distance, na.rm = TRUE), 
+                      distance)  
+  ) %>%
+  ungroup() %>%  
+  select(-count_unique_city, -count_unique_wojewodztwo, -count_unique_Powiat, 
+         -count_unique_latitude, -count_unique_longitude, -count_unique_distance)
+
+print(df)
+
+df %>% 
+  filter(role=='INVENTORS') %>% 
+  count(name) %>% 
+  arrange(-n)
+
+write.csv(df,"D:/AA Praktyki/final_dataframe_cities.csv")
+
+
+```
+
+
+
